@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <title>路易穿搭圖鑑 Widget</title>
+  <style>
+    :root {
+      --bg-card: rgba(255, 255, 255, 0.75);
+      --bg-tag: rgba(255, 255, 255, 0.95);
+      --border-color: rgba(255, 255, 255, 0.5);
+      --text-main: #222222;
+      --text-sub: #555555;
+    }
+
+    /* Notion 深色模式適應 */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-card: rgba(30, 30, 30, 0.75);
+        --bg-tag: rgba(45, 45, 45, 0.95);
+        --border-color: rgba(255, 255, 255, 0.15);
+        --text-main: #f0f0f0;
+        --text-sub: #cccccc;
+      }
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      min-height: 420px;
+      background: transparent;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .widget-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      min-height: 380px;
+      justify-content: center;
+      box-sizing: border-box;
+      padding: 10px;
+    }
+
+    /* 頂部工具列 */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 240px;
+      margin-bottom: 6px;
+      z-index: 20;
+    }
+
+    .progress-tag {
+      background: var(--bg-tag);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 2px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-sub);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+      letter-spacing: 0.5px;
+    }
+
+    .sound-btn {
+      background: var(--bg-tag);
+      border: 1px solid var(--border-color);
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+      transition: transform 0.2s;
+    }
+    .sound-btn:hover { transform: scale(1.1); }
+
+    /* 角色舞台區域 */
+    .character-stage {
+      position: relative;
+      width: 240px;
+    }
+
+    .stage-shadow {
+      position: absolute;
+      bottom: -6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 160px;
+      height: 16px;
+      background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0) 70%);
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .base-character {
+      width: 100%;
+      height: auto;
+      object-fit: contain;
+      z-index: 1;
+      pointer-events: none;
+      display: block;
+    }
+
+    .accessory {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: auto;
+      object-fit: contain;
+      z-index: 2;
+      pointer-events: none;
+      filter: grayscale(100%) brightness(0.4) opacity(0.65);
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      display: block;
+    }
+
+    /* 鼠標懸停時的亮邊反饋 */
+    .accessory.hovered {
+      filter: grayscale(40%) brightness(0.85) opacity(0.9) drop-shadow(0px 0px 6px rgba(255, 255, 255, 0.8));
+      transform: scale(1.02);
+      z-index: 4;
+    }
+
+    /* Active 選中狀態 */
+    .accessory.active {
+      filter: grayscale(0%) brightness(1) opacity(1) drop-shadow(0px 4px 10px rgba(0, 0, 0, 0.3));
+      transform: scale(1.06);
+      z-index: 5;
+    }
+
+    .hotspot-layer {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 999 !important;
+      pointer-events: none;
+    }
+
+    .touch-area {
+      position: absolute;
+      cursor: pointer;
+      background: rgba(0, 0, 0, 0); /* 完全透明 */
+      pointer-events: auto !important;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* 下方對話框 */
+    .info-box {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all 0.3s ease-out;
+      pointer-events: none;
+      position: relative;
+    }
+
+    .info-box.show {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .info-tag {
+      background: var(--bg-tag);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 3px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+      margin-bottom: -10px;
+      z-index: 12;
+    }
+
+    .info-desc {
+      background: var(--bg-card);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 12.5px;
+      line-height: 1.45;
+      color: var(--text-main);
+      text-align: center;
+      min-width: 180px;
+      max-width: 280px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      z-index: 11;
+      box-sizing: border-box;
+      position: relative;
+    }
+
+    .close-btn {
+      position: absolute;
+      top: 4px; right: 8px;
+      font-size: 11px;
+      color: var(--text-sub);
+      cursor: pointer;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+    .close-btn:hover { opacity: 1; }
+
+    #particle-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 99;
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="particle-canvas"></canvas>
+
+  <div class="widget-container">
+    <div class="top-bar">
+      <div id="progressTag" class="progress-tag">COLLECTION 0 / 5</div>
+      <div id="soundBtn" class="sound-btn" onclick="toggleSound()">🔊</div>
+    </div>
+
+    <div class="character-stage">
+      <div class="stage-shadow"></div>
+      <img class="base-character" referrerpolicy="no-referrer" src="https://i.imgur.com/T6EPojF.png" alt="角色路易">
+
+      <img id="acc-衣服" class="accessory" referrerpolicy="no-referrer" src="https://i.imgur.com/IwkdwrQ.png">
+      <img id="acc-耳環" class="accessory" referrerpolicy="no-referrer" src="https://i.imgur.com/Y6fw5Nd.png">
+      <img id="acc-髮帶" class="accessory" referrerpolicy="no-referrer" src="https://i.imgur.com/SeGt7gH.png">
+      <img id="acc-背心" class="accessory" referrerpolicy="no-referrer" src="https://i.imgur.com/DCOVmcq.png">
+      <img id="acc-鞋子左" class="accessory" referrerpolicy="no-referrer" src="https://i.imgur.com/M1QJCZH.png">
+      <img id="acc-鞋子右" class="accessory" referrerpolicy="no-referrer" src="https://i.imgur.com/M1QJCZH.png">
+
+      <!-- 熱區圖層 -->
+      <div class="hotspot-layer">
+        <!-- 髮帶 -->
+        <div class="touch-area" style="top: 15%; left: 25%; width: 52%; height: 18%; border-radius: 50%;"
+             onmouseenter="hoverAcc('髮帶', true)" onmouseleave="hoverAcc('髮帶', false)"
+             onclick="clickAccessory(event, '髮帶', '地獄批發的髮帶', '地獄批發的實用髮帶，專門用來阻擋從火山頂噼啪彈落的火花，以免傷及雙眼。')"></div>
+
+        <!-- 耳環 -->
+        <div class="touch-area" style="top: 48%; left: 78%; width: 12%; height: 12%; border-radius: 50%;"
+             onmouseenter="hoverAcc('耳環', true)" onmouseleave="hoverAcc('耳環', false)"
+             onclick="clickAccessory(event, '耳環', '666號鑰匙', '所謂的「舒芙蕾靈魂庫The Soul-fflé Vault」，是惡魔們用來存放凡間搜割靈魂的藏寶庫。每個保管格上都插著一把黯淡無光的金鑰匙；只要靈魂順利入庫，金鑰匙便會迸發出耀眼的金光——在地獄，一枚發光的金鑰匙意味著能實現任何一個願望。')"></div>
+
+        <!-- 衣服 -->
+        <div class="touch-area" style="top: 50%; left: 20%; width: 60%; height: 30%; border-radius: 20%; z-index: 100;"
+             onmouseenter="hoverAcc('衣服', true)" onmouseleave="hoverAcc('衣服', false)"
+             onclick="clickAccessory(event, '衣服', '地獄批發的連身工裝服', '這種由地獄批發的連身工裝服，除了常見的綠色外，還備有紅色、棕色與黃色。它和頭盔一樣，是專門批發給下級惡魔們的公發裝備。')"></div>
+
+        <!-- 背心 -->
+        <div class="touch-area" style="top: 53%; left: 40%; width: 20%; height: 15%; border-radius: 20%; z-index: 101;"
+             onmouseenter="hoverAcc('背心', true)" onmouseleave="hoverAcc('背心', false)"
+             onclick="clickAccessory(event, '背心', '一分糖的黑色背心', '地獄老街隨處可見的黑色背心，單價只需一分糖。優質棉布打造的耐用質感，在顧客間口碑極佳：耐熱、耐甜，實用無比。')"></div>
+
+        <!-- 鞋子左 -->
+        <div class="touch-area" style="top: 75%; left: 18%; width: 32%; height: 18%; border-radius: 20%;"
+             onmouseenter="hoverAcc('鞋子左', true)" onmouseleave="hoverAcc('鞋子左', false)"
+             onclick="clickAccessory(event, '鞋子左', '紅繩子帆布鞋', '這是一雙極為經典的普林索爾帆布鞋（Plimsolls），也是地獄裡風靡一時的平民輕便鞋——據說它在陡峭的火山岩上抓地力可是一級棒。')"></div>
+
+        <!-- 鞋子右 -->
+        <div class="touch-area" style="top: 75%; left: 50%; width: 32%; height: 18%; border-radius: 20%;"
+             onmouseenter="hoverAcc('鞋子右', true)" onmouseleave="hoverAcc('鞋子右', false)"
+             onclick="clickAccessory(event, '鞋子右', '紅繩子帆布鞋', '這是一雙極為經典的普林索爾帆布鞋（Plimsolls），也是地獄裡風靡一時的平民輕便鞋——據說它在陡峭的火山岩上抓地力可是一級棒。')"></div>
+      </div>
+    </div>
+
+    <!-- 下方對話框 -->
+    <div id="infoBox" class="info-box">
+      <div id="infoTag" class="info-tag">配件名稱</div>
+      <div class="info-desc">
+        <span class="close-btn" onclick="closeBox()">✕</span>
+        <span id="infoDesc">配件說明內容...</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let activeId = null;
+    let unlockedItems = new Set();
+    const totalCategories = 5;
+    let soundEnabled = true;
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      document.getElementById('soundBtn').innerText = soundEnabled ? '🔊' : '🔇';
+    }
+
+    function playClickSound(pitch = 600) {
+      if (!soundEnabled) return;
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(pitch, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.08);
+      } catch (e) {}
+    }
+
+    function getGroupElements(id) {
+      if (id.includes('鞋子')) return [document.getElementById('acc-鞋子左'), document.getElementById('acc-鞋子右')];
+      return [document.getElementById(`acc-${id}`)];
+    }
+
+    function getCategoryId(id) {
+      if (id.includes('鞋子')) return '鞋子';
+      return id;
+    }
+
+    function hoverAcc(id, isHover) {
+      const els = getGroupElements(id);
+      els.forEach(el => {
+        if (el) {
+          if (isHover) el.classList.add('hovered');
+          else el.classList.remove('hovered');
+        }
+      });
+    }
+
+    function clickAccessory(evt, id, name, desc) {
+      if (evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+      }
+      const infoBox = document.getElementById('infoBox');
+      const category = getCategoryId(id);
+      const els = getGroupElements(id);
+
+      if (activeId === id) {
+        closeBox();
+        playClickSound(400);
+        return;
+      }
+
+      playClickSound(750);
+
+      document.querySelectorAll('.accessory').forEach(el => el.classList.remove('active'));
+
+      els.forEach(el => el.classList.add('active'));
+      activeId = id;
+
+      unlockedItems.add(category);
+      updateProgress();
+
+      document.getElementById('infoTag').innerText = name;
+      document.getElementById('infoDesc').innerText = desc;
+      infoBox.classList.add('show');
+    }
+
+    function closeBox() {
+      document.querySelectorAll('.accessory').forEach(el => el.classList.remove('active'));
+      document.getElementById('infoBox').classList.remove('show');
+      activeId = null;
+    }
+
+    function updateProgress() {
+      const count = unlockedItems.size;
+      const progEl = document.getElementById('progressTag');
+      progEl.innerText = `COLLECTION ${count} / ${totalCategories}`;
+
+      if (count === totalCategories && !progEl.dataset.completed) {
+        progEl.dataset.completed = "true";
+        progEl.style.color = "#ff9800";
+        progEl.innerText = `★ ALL UNLOCKED! ★`;
+        triggerConfetti();
+        playClickSound(900);
+      }
+    }
+
+    window.onload = function() {
+      initParticles();
+    };
+
+    let particles = [];
+    function initParticles() {
+      const canvas = document.getElementById('particle-canvas');
+      const ctx = canvas.getContext('2d');
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      function loop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach((p, i) => {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.15;
+          p.alpha -= 0.012;
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = Math.max(0, p.alpha);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+          if (p.alpha <= 0) particles.splice(i, 1);
+        });
+        requestAnimationFrame(loop);
+      }
+      loop();
+    }
+
+    function triggerConfetti() {
+      const colors = ['#ffc107', '#ff5722', '#4caf50', '#00bcd4', '#e91e63'];
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 3;
+      for (let i = 0; i < 60; i++) {
+        particles.push({
+          x: cx, y: cy,
+          vx: (Math.random() - 0.5) * 8,
+          vy: (Math.random() - 0.7) * 8,
+          size: Math.random() * 4 + 2,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          alpha: 1
+        });
+      }
+    }
+  </script>
+</body>
+</html>
